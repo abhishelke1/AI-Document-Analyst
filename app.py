@@ -14,7 +14,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain.chains import create_retrieval_chain
+# Try importing from the specific module if the main one fails
+try:
+    from langchain.chains import create_retrieval_chain
+except ImportError:
+    from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 
