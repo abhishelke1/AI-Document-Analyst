@@ -1,16 +1,18 @@
-# --- 1. SQLite Fix for Streamlit Cloud (MUST BE AT THE VERY TOP) ---
-# Streamlit Cloud uses an old version of SQLite that breaks ChromaDB.
-# This hack forces it to use the newer 'pysqlite3' library we installed.
-__import__('pysqlite3')
-import sys
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
-# --- 2. Standard Imports ---
 import streamlit as st
 import os
 import tempfile
 
-# --- 3. LangChain Imports ---
+# --- 1. Smart SQLite Fix (Works on Windows & Cloud) ---
+# This tries to use the cloud-fix. If it fails (on Windows), 
+# it safely ignores it and uses your local SQLite.
+try:
+    __import__('pysqlite3')
+    import sys
+    sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+except ImportError:
+    pass
+
+# --- 2. LangChain Imports ---
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import ChatOpenAI
@@ -20,7 +22,7 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 
-# --- 4. Page Configuration ---
+# --- 3. Page Configuration ---
 st.set_page_config(
     page_title="AI Document Analyst",
     page_icon="🤖",
@@ -39,7 +41,7 @@ st.markdown("""
 st.title("🤖 AI Document Analyst")
 st.markdown("Upload a document and ask detailed questions. I analyze the content in real-time.")
 
-# --- 5. Sidebar for File Upload ---
+# --- 4. Sidebar for File Upload ---
 with st.sidebar:
     st.header("📂 Document Center")
     uploaded_file = st.file_uploader("Upload PDF", type="pdf")
@@ -49,13 +51,13 @@ with st.sidebar:
     if "vector_db" not in st.session_state:
         st.session_state.vector_db = None
 
-# --- 6. Initialize Chat History ---
+# --- 5. Initialize Chat History ---
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hello! Upload a PDF, and I can answer detailed questions about it."}
     ]
 
-# --- 7. Process the PDF ---
+# --- 6. Process the PDF ---
 if uploaded_file and st.session_state.vector_db is None:
     with st.spinner("🧠 Processing document... (Splitting & Embedding)"):
         try:
@@ -82,12 +84,12 @@ if uploaded_file and st.session_state.vector_db is None:
         except Exception as e:
             st.sidebar.error(f"Error: {str(e)}")
 
-# --- 8. Display Chat History ---
+# --- 7. Display Chat History ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 9. Chat Logic ---
+# --- 8. Chat Logic ---
 if prompt := st.chat_input("Ask a specific question about the document..."):
     
     if st.session_state.vector_db is None:
@@ -102,13 +104,13 @@ if prompt := st.chat_input("Ask a specific question about the document..."):
         with st.chat_message("assistant"):
             with st.spinner("Analyzing context..."):
                 
-                # Retrieve API Key from Secrets
-                # If running locally without secrets.toml, you can hardcode it here for testing:
-                # api_key = "your-key-here"
+                # --- SECURE KEY HANDLING ---
+                # We check st.secrets for the key. We DO NOT hardcode it here.
+                # This works locally (via .streamlit/secrets.toml) and on Cloud (via Dashboard).
                 api_key = st.secrets.get("OPENROUTER_API_KEY")
                 
                 if not api_key:
-                    st.error("API Key not found! Please set OPENROUTER_API_KEY in Streamlit secrets.")
+                    st.error("API Key missing! Please add 'OPENROUTER_API_KEY' to your secrets.toml file or Streamlit Cloud secrets.")
                     st.stop()
                 
                 # Initialize LLM
