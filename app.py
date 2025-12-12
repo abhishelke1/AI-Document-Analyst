@@ -1,3 +1,9 @@
+# --- 1. SQLite Fix for Streamlit Cloud (MUST BE AT THE VERY TOP) ---
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+# --- 2. Standard Imports ---
 import streamlit as st
 import os
 import tempfile
@@ -12,7 +18,7 @@ from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 
-# --- 1. Page Configuration (Make it look professional) ---
+# --- 3. Page Configuration (Make it look professional) ---
 st.set_page_config(
     page_title="AI Document Analyst",
     page_icon="🤖",
@@ -31,7 +37,7 @@ st.markdown("""
 st.title("🤖 AI Document Analyst")
 st.markdown("Upload a document and ask detailed questions. I analyze the content in real-time.")
 
-# --- 2. Sidebar for File Upload ---
+# --- 4. Sidebar for File Upload ---
 with st.sidebar:
     st.header("📂 Document Center")
     uploaded_file = st.file_uploader("Upload PDF", type="pdf")
@@ -42,13 +48,13 @@ with st.sidebar:
     if "vector_db" not in st.session_state:
         st.session_state.vector_db = None
 
-# --- 3. Initialize Chat History ---
+# --- 5. Initialize Chat History ---
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": "Hello! Upload a PDF, and I can answer detailed questions about it."}
     ]
 
-# --- 4. Process the PDF (Only runs once when file is uploaded) ---
+# --- 6. Process the PDF (Only runs once when file is uploaded) ---
 if uploaded_file and st.session_state.vector_db is None:
     with st.spinner("🧠 Processing document... (Splitting & Embedding)"):
         try:
@@ -75,12 +81,12 @@ if uploaded_file and st.session_state.vector_db is None:
         except Exception as e:
             st.sidebar.error(f"Error: {str(e)}")
 
-# --- 5. Display Chat History ---
+# --- 7. Display Chat History ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# --- 6. Chat Logic (The Core) ---
+# --- 8. Chat Logic (The Core) ---
 # We check if user typed something AND if we have a document ready
 if prompt := st.chat_input("Ask a specific question about the document..."):
     
