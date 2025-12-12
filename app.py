@@ -3,8 +3,6 @@ import os
 import tempfile
 
 # --- 1. Smart SQLite Fix (Works on Windows & Cloud) ---
-# This tries to use the cloud-fix. If it fails (on Windows), 
-# it safely ignores it and uses your local SQLite.
 try:
     __import__('pysqlite3')
     import sys
@@ -12,31 +10,29 @@ try:
 except ImportError:
     pass
 
-# --- 2. LangChain Imports (Robust Fix) ---
+# --- 2. LangChain Imports ---
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import ChatOpenAI
-from langchain_huggingface import HuggingFaceEmbeddings
+# CHANGED: Import Hugging Face classes instead of OpenAI
+from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint, ChatHuggingFace
 from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
 # --- IMPORT FIX FOR STREAMLIT CLOUD ---
-# This handles version mismatches on the cloud server automatically.
 try:
     from langchain.chains import create_retrieval_chain
 except ImportError:
-    # Fallback for slightly different library versions
     from langchain.chains.retrieval import create_retrieval_chain
 
 # --- 3. Page Configuration ---
 st.set_page_config(
-    page_title="AI Document Analyst",
-    page_icon="🤖",
+    page_title="AI Document Analyst (Hugging Face)",
+    page_icon="🤗",
     layout="wide"
 )
 
-# Custom CSS for a professional look
+# Custom CSS
 st.markdown("""
 <style>
     .stChatMessage { font-size: 1.05rem; }
@@ -45,8 +41,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🤖 AI Document Analyst")
-st.markdown("Upload a document and ask detailed questions. I analyze the content in real-time.")
+st.title("🤗 AI Document Analyst")
+st.markdown("Upload a document and ask detailed questions. Powered by **Llama-3 via Hugging Face**.")
 
 # --- 4. Sidebar for File Upload ---
 with st.sidebar:
@@ -54,14 +50,13 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload PDF", type="pdf")
     st.markdown("---")
     
-    # Initialize session state for vector_db
     if "vector_db" not in st.session_state:
         st.session_state.vector_db = None
 
 # --- 5. Initialize Chat History ---
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "Hello! Upload a PDF, and I can answer detailed questions about it."}
+        {"role": "assistant", "content": "Hello! I'm running on Hugging Face servers. Upload a PDF to start!"}
     ]
 
 # --- 6. Process the PDF ---
@@ -109,35 +104,38 @@ if prompt := st.chat_input("Ask a specific question about the document..."):
 
         # Generate Response
         with st.chat_message("assistant"):
-            with st.spinner("Analyzing context..."):
+            with st.spinner("Thinking (Hugging Face API)..."):
                 
-                # --- SECURE KEY HANDLING ---
-                # We check st.secrets for the key. We DO NOT hardcode it here.
-                api_key = st.secrets.get("OPENROUTER_API_KEY")
+                # --- CHANGED: HUGGING FACE SETUP ---
+                # Get the Hugging Face Token from Secrets
+                hf_token = st.secrets.get("HUGGINGFACEHUB_API_TOKEN")
                 
-                if not api_key:
-                    st.error("API Key missing! Please add 'OPENROUTER_API_KEY' to your secrets.toml file or Streamlit Cloud secrets.")
+                if not hf_token:
+                    st.error("Missing Hugging Face Token! Add 'HUGGINGFACEHUB_API_TOKEN' to your secrets.toml.")
                     st.stop()
                 
-                # Initialize LLM
-                llm = ChatOpenAI(
-                    openai_api_key=api_key,
-                    openai_api_base="https://openrouter.ai/api/v1",
-                    model_name="openai/gpt-3.5-turbo", # Reliable & Fast
-                    temperature=0.3
+                # 1. Define the Repo ID (Using Llama 3 8B Instruct - It is free and smart)
+                repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+
+                # 2. Initialize the Endpoint
+                llm = HuggingFaceEndpoint(
+                    repo_id=repo_id,
+                    max_new_tokens=512,
+                    temperature=0.3,
+                    huggingfacehub_api_token=hf_token,
                 )
+
+                # 3. Wrap in ChatHuggingFace for better prompt handling
+                chat_model = ChatHuggingFace(llm=llm)
 
                 # Create Retriever
                 retriever = st.session_state.vector_db.as_retriever(search_kwargs={"k": 5})
 
                 # System Prompt
                 system_prompt = (
-                    "You are a highly intelligent AI analyst. "
-                    "You have been provided with context from a document. "
-                    "Answer the user's question based strictly on the context provided. "
-                    "Provide a detailed, well-structured explanation. "
-                    "If the answer is complex, break it down into bullet points. "
-                    "If the context does not contain the answer, explicitly say so."
+                    "You are a helpful AI assistant. "
+                    "Use the following pieces of retrieved context to answer the question. "
+                    "If you don't know the answer, say that you don't know. "
                     "\n\n"
                     "Context:\n{context}"
                 )
@@ -148,7 +146,7 @@ if prompt := st.chat_input("Ask a specific question about the document..."):
                     ("human", "{input}")
                 ])
                 
-                combine_docs_chain = create_stuff_documents_chain(llm, prompt_template)
+                combine_docs_chain = create_stuff_documents_chain(chat_model, prompt_template)
                 retrieval_chain = create_retrieval_chain(retriever, combine_docs_chain)
 
                 try:
@@ -161,4 +159,5 @@ if prompt := st.chat_input("Ask a specific question about the document..."):
                     st.session_state.messages.append({"role": "assistant", "content": answer})
                 
                 except Exception as e:
-                    st.error(f"Error generating response: {e}")
+                    st.error(f"Error: {e}")
+                    st.info("Note: The free Hugging Face API has rate limits. If you see a 503 error, wait a moment and try again.")
