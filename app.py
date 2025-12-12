@@ -12,15 +12,22 @@ try:
 except ImportError:
     pass
 
-# --- 2. LangChain Imports ---
+# --- 2. LangChain Imports (Robust Fix) ---
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
+from langchain.chains.combine_documents import create_stuff_documents_chain
+
+# --- IMPORT FIX FOR STREAMLIT CLOUD ---
+# This handles version mismatches on the cloud server automatically.
+try:
+    from langchain.chains import create_retrieval_chain
+except ImportError:
+    # Fallback for slightly different library versions
+    from langchain.chains.retrieval import create_retrieval_chain
 
 # --- 3. Page Configuration ---
 st.set_page_config(
@@ -106,7 +113,6 @@ if prompt := st.chat_input("Ask a specific question about the document..."):
                 
                 # --- SECURE KEY HANDLING ---
                 # We check st.secrets for the key. We DO NOT hardcode it here.
-                # This works locally (via .streamlit/secrets.toml) and on Cloud (via Dashboard).
                 api_key = st.secrets.get("OPENROUTER_API_KEY")
                 
                 if not api_key:
