@@ -115,7 +115,7 @@ if prompt := st.chat_input("Ask a specific question about the document..."):
                     st.stop()
                 
                 # 1. Define the Repo ID (Using Llama 3 8B Instruct - It is free and smart)
-                repo_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+                repo_id = "mistralai/Mistral-7B-Instruct-v0.3"
 
                 # 2. Initialize the Endpoint
                 llm = HuggingFaceEndpoint(
