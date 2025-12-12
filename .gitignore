@@ -32,6 +32,9 @@ ENV/
 # ChromaDB - Vector Database (large files, regenerated on use)
 chroma_db/
 
+# Local Development Version (Windows-specific)
+app_local.py
+
 # IDE
 .vscode/
 .idea/
